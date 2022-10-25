@@ -92,7 +92,8 @@ class _IntegralCurve extends Curve {
 class Marquee extends StatefulWidget {
   Marquee({
     super.key,
-    required this.text,
+    required this.child,
+    required this.childWidth,
     this.style,
     this.textScaleFactor,
     this.textDirection = TextDirection.ltr,
@@ -152,7 +153,8 @@ class Marquee extends StatefulWidget {
   /// See also:
   ///
   /// * [style] to style the text.
-  final String text;
+  final Widget child;
+  final double childWidth;
 
   /// The style of the text to be displayed.
   ///
@@ -169,7 +171,7 @@ class Marquee extends StatefulWidget {
   ///
   /// See also:
   ///
-  /// * [text] to provide the text itself.
+  /// * [child] to provide the text itself.
   final TextStyle? style;
 
   /// The font scale of the text to be displayed.
@@ -187,7 +189,7 @@ class Marquee extends StatefulWidget {
   ///
   /// See also:
   ///
-  /// * [text] to provide the text itself.
+  /// * [child] to provide the text itself.
   final double? textScaleFactor;
 
   /// The text direction of the text to be displayed.
@@ -205,7 +207,7 @@ class Marquee extends StatefulWidget {
   ///
   /// See also:
   ///
-  /// * [text] to provide the text itself.
+  /// * [child] to provide the text itself.
   final TextDirection textDirection;
 
   /// The scroll axis.
@@ -508,6 +510,25 @@ class Marquee extends StatefulWidget {
 
   @override
   State<StatefulWidget> createState() => _MarqueeState();
+
+  static double getTextWidth(
+      BuildContext context, String text, TextStyle style) {
+    final span = TextSpan(text: text, style: style);
+
+    final constraints = BoxConstraints(maxWidth: double.infinity);
+
+    final richTextWidget = Text.rich(span).build(context) as RichText;
+    final renderObject = richTextWidget.createRenderObject(context);
+    renderObject.layout(constraints);
+
+    final boxes = renderObject.getBoxesForSelection(TextSelection(
+      baseOffset: 0,
+      extentOffset: TextSpan(text: text).toPlainText().length,
+    ));
+
+    return boxes.last.right;
+  }
+
 }
 
 class _MarqueeState extends State<Marquee> with SingleTickerProviderStateMixin {
@@ -532,9 +553,11 @@ class _MarqueeState extends State<Marquee> with SingleTickerProviderStateMixin {
   bool _running = false;
   bool _isOnPause = false;
   int _roundCounter = 0;
+
   bool get isDone => widget.numberOfRounds == null
       ? false
       : widget.numberOfRounds == _roundCounter;
+
   bool get showFading =>
       !widget.showFadingOnlyWhenScrolling ? true : !_isOnPause;
 
@@ -575,7 +598,7 @@ class _MarqueeState extends State<Marquee> with SingleTickerProviderStateMixin {
   /// Calculates all necessary values for animating, then starts the animation.
   void _initialize(BuildContext context) {
     // Calculate lengths (amount of pixels that each phase needs).
-    final totalLength = _getTextWidth(context) + widget.blankSpace;
+    final totalLength = widget.childWidth + widget.blankSpace;
     final accelerationLength = widget.accelerationCurve.integral *
         widget.velocity *
         _accelerationDuration.inMilliseconds /
@@ -682,23 +705,6 @@ class _MarqueeState extends State<Marquee> with SingleTickerProviderStateMixin {
   }
 
   /// Returns the width of the text.
-  double _getTextWidth(BuildContext context) {
-    final span = TextSpan(text: widget.text, style: widget.style);
-
-    final constraints = BoxConstraints(maxWidth: double.infinity);
-
-    final richTextWidget = Text.rich(span).build(context) as RichText;
-    final renderObject = richTextWidget.createRenderObject(context);
-    renderObject.layout(constraints);
-
-    final boxes = renderObject.getBoxesForSelection(TextSelection(
-      baseOffset: 0,
-      extentOffset: TextSpan(text: widget.text).toPlainText().length,
-    ));
-
-    return boxes.last.right;
-  }
-
   @override
   Widget build(BuildContext context) {
     _initialize(context);
@@ -729,10 +735,7 @@ class _MarqueeState extends State<Marquee> with SingleTickerProviderStateMixin {
       reverse: widget.textDirection == TextDirection.rtl,
       physics: NeverScrollableScrollPhysics(),
       itemBuilder: (_, i) {
-        final text = i.isEven
-            ? Text(widget.text,
-                style: widget.style, textScaleFactor: widget.textScaleFactor)
-            : _buildBlankSpace();
+        final text = i.isEven ? widget.child : _buildBlankSpace();
         return alignment == null
             ? text
             : Align(alignment: alignment, child: text);
